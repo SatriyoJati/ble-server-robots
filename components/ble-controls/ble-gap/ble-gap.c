@@ -2,21 +2,34 @@
     setup config for gap layer. initialize gap, and
     set dynamic config for gap.
 */
-#include <esp_gap_ble_api.h>
-#include <esp_gatts_api.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/event_groups.h"
+#include "esp_system.h"
+#include "esp_log.h"
+#include "nvs_flash.h"
+#include "esp_bt.h"
+#include "esp_gap_ble_api.h"
+#include "esp_gatts_api.h"
 #include "ble-gap.h"
 
 /* data types*/
 
 
 /* constants*/
-
+#define GATTS_TABLE_TAG "GATTS_TABLE_DEMO"
 
 /* macro definitions*/
 
 
 /* static data declarations*/
-static const char* device_name = "ROBOT-BLE-BBX"
+static const char* device_name = "ROBOT-BLE-BBX";
+
+static uint8_t service_uuid[16] = {
+    /* LSB <--------------------------------------------------------------------------------> MSB */
+    //first uuid, 16bit, [12],[13] is the value
+    0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80, 0x00, 0x10, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00,
+};
 
 static esp_ble_adv_data_t robot_control_ble_adv_data = {
     .set_scan_rsp        = false,
@@ -35,42 +48,58 @@ static esp_ble_adv_data_t robot_control_ble_adv_data = {
 };
 
 
-static esp_ble_adv_params_t robot_control_ble_adv_params = {
+esp_ble_adv_params_t robot_control_ble_adv_params = {
     .adv_int_min         = 0x20,
     .adv_int_max         = 0x40,
     .adv_type            = ADV_TYPE_IND,
     .own_addr_type       = BLE_ADDR_TYPE_PUBLIC,
     .channel_map         = ADV_CHNL_ALL,
     .adv_filter_policy   = ADV_FILTER_ALLOW_SCAN_ANY_CON_ANY,
-
-}
+};
 
 /* private functions protoypes*/
-static void gatts_profile_event_handler(esp_gap_ble_cb_event_t event, 
-esp_gatts_if_t  p_gatts_if, esp_ble_gatts_cb_param_t * param);
-
-static void start_advertising(const uint8_t * data);
+static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
 /* public functions bodies*/
-void ble_gap_init_gap_ble_ctrl()
+void ble_gap_init_gap_ble_ctrl(bool security)
 {
-    esp_ble_gap_config_adv_data(&robot_control_ble_adv_data)
+    if (!security){
+        printf("init advertisement data\n");
+        esp_ble_gap_config_adv_data(&robot_control_ble_adv_data);
+    }
+    else {
+        //TODO : enable security
+    }
+}
+
+
+void ble_gap_init_cb_gap_ctrl()
+{
+    /*
+    TODO : learn about mechanism
+    */
+    printf("init gap register cb\n");
+    esp_ble_gap_register_callback(gap_event_handler);
+}
+
+void ble_gap_start_advertise()
+{
+    esp_ble_gap_start_advertising(&robot_control_ble_adv_params);
 }
 
 /* private functions bodies*/
 
-static void start_advertising(const uint8_t * data)
+static void start_advertising()
 {
-    esp_ble_gap_start_advertising(data);
+    printf("start advertising\n");
+    esp_ble_gap_start_advertising(&robot_control_ble_adv_params);
 }
 
-
-static void gatts_profile_event_handler(esp_gatts_cb_event_t event, 
-esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param)
+static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param)
 {
     switch(event){
         case ESP_GAP_BLE_ADV_DATA_SET_COMPLETE_EVT:
-            start_advertising(&robot_control_ble_adv_params)
+            start_advertising();
             break;
 
         case ESP_GAP_BLE_ADV_START_COMPLETE_EVT:
